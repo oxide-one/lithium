@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -27,24 +29,40 @@ func createNodes(count int) v1.NodeList {
 		nodeHostName := "control-plane-node-" + RandStringBytes(8)
 		nodeIPAddress := fmt.Sprintf("10.0.0.%d", i+10)
 		//
+		node := v1.Node{
+			Status: v1.NodeStatus{
+				Addresses: []v1.NodeAddress{
+					{
+						Type:    "Hostname",
+						Address: nodeHostName,
+					},
+					{
+						Type:    "InternalIP",
+						Address: nodeIPAddress,
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nodeHostName,
+				Labels: map[string]string{
+					"node-role.kubernetes.io/control-plane": "",
+				},
+			},
+		}
 
-		nodeAddresses := []v1.NodeAddress{}
-		nodeAddresses = append(nodeAddresses, v1.NodeAddress{Type: "Hostname", Address: nodeHostName})
-		nodeAddresses = append(nodeAddresses, v1.NodeAddress{Type: "InternalIP", Address: nodeIPAddress})
-
-		nodes = append(nodes, v1.Node{Status: v1.NodeStatus{Addresses: nodeAddresses}})
+		nodes = append(nodes, node)
 	}
-	fmt.Println(nodes)
 	nodeList := v1.NodeList{Items: nodes}
 	return nodeList
 }
 
 func TestGrabControlPlaneNodes(t *testing.T) {
 
-	createNodes(10)
-	//node := v1.Node{Status: v1.NodeStatus{Addresses: []}}
+	nodes := createNodes(10)
 
-	//fak8s := fake.NewSimpleClientset(&nodes)
+	client := kubeClient{}
+	client.clientset = fake.NewSimpleClientset(&nodes)
 	//fmt.Println(fak8s.Discovery().ServerVersion())
-	//grabControlPlaneNodes("master")
+	roleName := "control-plane"
+	grabControlPlaneNodes(&roleName, &client)
 }

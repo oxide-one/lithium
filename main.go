@@ -20,12 +20,16 @@ type nodeNetworkInformation struct {
 	NodeIP   string
 }
 
-func grabControlPlaneNodes(roleName *string, k8s *kubernetes.Clientset) []nodeNetworkInformation {
+type kubeClient struct {
+	clientset kubernetes.Interface
+}
+
+func grabControlPlaneNodes(roleName *string, k8s *kubeClient) []nodeNetworkInformation {
 	// Format a string to contain the controlPlaneRoleName variable
 	formattedRoleName := fmt.Sprintf("node-role.kubernetes.io/%s=", *roleName)
 
 	// Grab a list of nodes (machines)
-	nodeInformationList, err := k8s.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: formattedRoleName})
+	nodeInformationList, err := k8s.clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: formattedRoleName})
 	if err != nil {
 		// Panic on error
 		panic(err.Error())
@@ -59,9 +63,9 @@ func grabControlPlaneNodes(roleName *string, k8s *kubernetes.Clientset) []nodeNe
 	return nodesNetworkInformation
 }
 
-func connectivityCheck(k8s *kubernetes.Clientset) {
+func connectivityCheck(k8s *kubeClient) {
 	// Run a basic connectivity check to get the server version
-	version, err := k8s.Discovery().ServerVersion()
+	version, err := k8s.clientset.Discovery().ServerVersion()
 	if err != nil {
 		// Panic if unable to connect
 		klog.Error("Unable to connect to the endpoint")
@@ -74,7 +78,7 @@ func connectivityCheck(k8s *kubernetes.Clientset) {
 }
 
 // createClient initalises a kubernetes config.
-func createClient(kubeConfig *string, alternateEndpoint *string) *kubernetes.Clientset {
+func createClient(kubeConfig *string, alternateEndpoint *string) *kubeClient {
 	// Build a kubernetes configuration from flags
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfig)
 	if err != nil {
@@ -93,14 +97,14 @@ func createClient(kubeConfig *string, alternateEndpoint *string) *kubernetes.Cli
 		config.TLSClientConfig.ServerName = endpointURL.Hostname()
 		config.Host = *alternateEndpoint
 	}
-
+	client := kubeClient{}
 	// create the clientset
-	clientSet, err := kubernetes.NewForConfig(config)
+	client.clientset, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	return clientSet
+	return &client
 }
 
 func main() {
@@ -130,9 +134,9 @@ func main() {
 	// Parse CLI args
 	flag.Parse()
 
-	k8s := createClient(kubeConfig, alternateEndpoint)
+	client := createClient(kubeConfig, alternateEndpoint)
 
-	connectivityCheck(k8s)
+	connectivityCheck(client)
 
-	grabControlPlaneNodes(controlPlaneRoleName, k8s)
+	grabControlPlaneNodes(controlPlaneRoleName, client)
 }
