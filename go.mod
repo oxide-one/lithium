@@ -1,6 +1,6 @@
 module github.com/oxide-one/lithium
 
-go 1.15
+go 1.19
 
 require (
 	k8s.io/api v0.18.14
